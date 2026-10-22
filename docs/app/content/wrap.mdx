@@ -1,0 +1,163 @@
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "~/components/ui/accordion";
+import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
+
+## Building
+
+`pnpm build` writes `build/client` (static assets) and `build/server` (the server-rendering app). Any host that runs Node can serve them with `pnpm start`, and the included `Dockerfile` packages the same build for container platforms.
+
+## Static hosting
+
+Without a server, React Router builds plain files that any static host can serve.
+
+- **SPA mode:** `pnpm build:spa` writes a single `build/client/index.html`, and every route renders in the browser. Preview it with `pnpm preview:spa`. The host has to send unknown URLs to `index.html`; on Netlify that's a `_redirects` file containing `/*  /index.html  200`.
+- **Pre-rendered:** set `ssr: false` and `prerender: true` in `react-router.config.ts` to get one HTML file per route, made at build time. That's better for first paint and search.
+
+Either way, `build/client` is the whole deployable site. There's no `index.html` source file in the repo: React Router generates it from the `Layout` in `app/root.tsx`, so the head tags, fonts and dark-mode script are defined once for every mode. The trade-offs of going serverless:
+
+- No server code runs. Loaders run at build time, and only on pre-rendered routes; in SPA mode only the root route can have one. Actions aren't allowed. Fetch data at runtime with `clientLoader` and `clientAction`.
+- Deep links need the host to send unknown URLs to the SPA entry: `index.html` in SPA mode, or `__spa-fallback.html` when pre-rendering with `/` itself pre-rendered.
+- Preview with `pnpm preview:spa`, a plain static server like your host. `pnpm start` also serves the build, but through the Node server, which isn't how it runs in production.
+
+The other route to a static app is React Router's _library mode_: a plain Vite app with `createBrowserRouter` and no React Router Vite plugin. That's a different project structure rather than a config change, so with this template, use one of the modes above.
+
+## GitHub Pages
+
+This site is deployed exactly this way. It's pre-rendered and served from the project subpath, `https://felton.github.io/thats-your-cue/`.
+
+1. **Config.** Set `site.url` in `app/lib/site.ts` to the full address, subpath included. Its path becomes `basename` (route paths) in `react-router.config.ts` and Vite's `base` (asset URLs) in `vite.config.ts`, so neither needs editing. Then switch on pre-rendering:
+
+   ```ts
+   // app/lib/site.ts
+   url: "https://felton.github.io/thats-your-cue",
+   ```
+
+   ```ts
+   // react-router.config.ts
+   export default {
+     ssr: false,
+     // Every static route, plus /404 for the catch-all route (see step 2).
+     async prerender({ getStaticPaths }) {
+       return [...getStaticPaths(), "/404"];
+     },
+     // Already in the template: the path of site.url.
+     basename: site.url ? new URL(site.url).pathname.replace(/\/?$/, "/") : "/",
+   } satisfies Config;
+   ```
+
+2. **Flatten the output.** With a `basename`, React Router writes pre-rendered pages to `build/client/thats-your-cue/…`, but Pages serves `build/client` itself at `/thats-your-cue/`. A short post-build script reads the subpath from `site.url` and moves the pages up next to the assets:
+
+   ```json
+   "build": "react-router build && node scripts/flatten-prerender.mjs"
+   ```
+
+   The same script turns the pre-rendered `/404` page into `404.html`, which Pages serves for any unknown URL. That page comes from a catch-all route (`route("*", …)`), so it also matches the unknown URL in the browser and hydrates without a mismatch. The script is [`scripts/flatten-prerender.mjs`](https://github.com/felton/thats-your-cue/blob/main/docs/scripts/flatten-prerender.mjs) in this site's folder.
+
+3. **Workflow.** Build, upload `build/client` as a Pages artifact, and deploy it. Pull requests build but don't deploy. The full file is [`.github/workflows/docs.yml`](https://github.com/felton/thats-your-cue/blob/main/.github/workflows/docs.yml).
+
+   ```yaml
+   - run: pnpm install --frozen-lockfile
+   - run: pnpm build
+   - uses: actions/upload-pages-artifact@v5
+     with:
+       path: build/client
+   # then, in a job with `environment: github-pages`:
+   - uses: actions/deploy-pages@v5
+   ```
+
+4. **Settings.** Under **Settings → Pages**, set **Source** to **GitHub Actions**. If you deploy from a branch other than the default one, also add it under **Environments → github-pages → Deployment branches and tags**.
+
+<Alert>
+  <AlertTitle>Every route is a real file</AlertTitle>
+  <AlertDescription>
+    Deep links and hard refreshes load real HTML with a 200 status, so there's no need for a
+    `404.html` copy of the app. If you don't need pre-rendering, the SPA setup below works too.
+  </AlertDescription>
+</Alert>
+
+### SPA mode on Pages
+
+Without pre-rendering, there's no flatten step, but Pages has no rewrite rules, so deep links need a workaround.
+
+1. **Config.** Set `ssr: false` in `react-router.config.ts`, and `site.url` to `https://<user>.github.io/<repo>` in `app/lib/site.ts`. That sets `basename` and `base`.
+2. **Deep links.** Pages serves `404.html` for any URL it can't find, so copy `index.html` there. Refreshes and shared links then load the app. Pages still sends those responses with a 404 status. That's fine for a personal site, but if search ranking matters, pre-render or use a host with real rewrites.
+3. **Workflow.** Add `.github/workflows/pages.yml` and set **Settings → Pages → Source** to **GitHub Actions**:
+
+```yaml
+name: Pages
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: cp build/client/index.html build/client/404.html
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: build/client
+      - id: deployment
+        uses: actions/deploy-pages@v5
+```
+
+## Other hosts
+
+The pre-rendered or SPA `build/client` folder works on any static host (Netlify, Cloudflare Pages, S3, nginx). Deployed at the domain root, `site.url` has no subpath, so there's no `basename` and no flatten step. For server rendering, deploy the default build to any Node host or as a container.
+
+## Working with agents
+
+The template is set up for coding agents as well as people:
+
+- `AGENTS.md` lists the commands, the layout and the conventions. `CLAUDE.md` imports it.
+- `pnpm create thats-your-cue my-app --name "…" --description "…" --yes` scaffolds without questions, and `AGENTS.md` tells an agent that finds a fresh copy to run `pnpm make-it-yours`.
+- `.agents/skills/` holds the official React Router and shadcn/ui agent skills. `.claude/skills` is a symlink to it.
+- `pnpm check` is the bar for done, and CI runs the same command.
+
+## FAQ
+
+<Accordion className="mt-4">
+  <AccordionItem value="node">
+    <AccordionTrigger>Which Node version?</AccordionTrigger>
+    <AccordionContent>The version in `.nvmrc` (Node 24). CI reads the same file.</AccordionContent>
+  </AccordionItem>
+  <AccordionItem value="404">
+    <AccordionTrigger>Why do Pages deep links 404 in SPA mode?</AccordionTrigger>
+    <AccordionContent>
+      Pages has no rewrite rules. With SPA mode, copy `index.html` to `404.html`, or pre-render so
+      every route has its own file.
+    </AccordionContent>
+  </AccordionItem>
+  <AccordionItem value="docs">
+    <AccordionTrigger>Will this docs site end up in my project?</AccordionTrigger>
+    <AccordionContent>
+      No. It lives in the repo's `docs/` folder. `create` only copies the `template/` folder of a
+      release.
+    </AccordionContent>
+  </AccordionItem>
+</Accordion>

@@ -1,0 +1,9 @@
+{
+  "name": "thats-your-cue-monorepo",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "check": "pnpm -C template check && pnpm -C docs check && pnpm -C packages/create-thats-your-cue test"
+  }
+}

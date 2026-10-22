@@ -1,0 +1,17 @@
+{
+  "name": "thats-your-cue",
+  "version": "0.0.1",
+  "description": "Shared tooling for the That's your cue starter. Nothing here yet: start a project with pnpm create thats-your-cue my-app",
+  "license": "MIT",
+  "homepage": "https://felton.github.io/thats-your-cue/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/felton/thats-your-cue.git",
+    "directory": "packages/thats-your-cue"
+  },
+  "type": "module",
+  "files": [],
+  "engines": {
+    "node": ">=22"
+  }
+}

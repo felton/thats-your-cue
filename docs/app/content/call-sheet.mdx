@@ -1,0 +1,149 @@
+import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+
+That's your cue is a starting point for new web projects: React Router in framework mode, Tailwind CSS v4 and shadcn/ui on Base UI, with formatting, linting, tests and CI already set up. You copy it, rename it, and start on the actual site.
+
+## Scaffold a project
+
+Run the create command with your package manager. pnpm is recommended, and npm, yarn and bun work too. It downloads the latest template release into `my-app`, then runs `make-it-yours` there, which asks for the site's name, description and public URL and sets the copy up as your project ([Make it yours](#make-it-yours) has the details).
+
+<Tabs defaultValue="pnpm" className="mt-4">
+  <TabsList>
+    <TabsTrigger value="pnpm">pnpm</TabsTrigger>
+    <TabsTrigger value="npm">npm</TabsTrigger>
+    <TabsTrigger value="yarn">yarn</TabsTrigger>
+    <TabsTrigger value="bun">bun</TabsTrigger>
+  </TabsList>
+  <TabsContent value="pnpm">
+
+```bash
+pnpm create thats-your-cue my-app
+```
+
+  </TabsContent>
+  <TabsContent value="npm">
+
+```bash
+npm create thats-your-cue@latest my-app
+```
+
+  </TabsContent>
+  <TabsContent value="yarn">
+
+```bash
+yarn create thats-your-cue my-app
+```
+
+  </TabsContent>
+  <TabsContent value="bun">
+
+```bash
+bun create thats-your-cue my-app
+```
+
+  </TabsContent>
+</Tabs>
+
+Pass values as options to skip the questions. With `--yes`, anything not given takes its default, which is how agents and CI run it:
+
+```bash
+pnpm create thats-your-cue my-app --name "Bakery Co" --description "Fresh bread daily" --yes
+```
+
+| Option                 | Default            | Effect                                           |
+| ---------------------- | ------------------ | ------------------------------------------------ |
+| `--template <version>` | the latest release | A release to pin, such as `__TEMPLATE_VERSION__` |
+| `--name <name>`        | the directory name | Site name                                        |
+| `--description <text>` | empty              | One-line description                             |
+| `--url <url>`          | empty              | Public address, including any subpath            |
+| `-y`, `--yes`          |                    | Don't ask; use defaults for anything not given   |
+
+Every version is listed on the [Releases](https://github.com/felton/thats-your-cue/releases) page, tagged `template-v…`.
+
+## Install and run
+
+```bash
+cd my-app
+pnpm install
+pnpm dev
+```
+
+The dev server runs at `http://localhost:5173`.
+
+<Alert>
+  <AlertTitle>pnpm is recommended</AlertTitle>
+  <AlertDescription>
+    The scripts run with any package manager: use the one you scaffolded with (`npm run dev`, `yarn
+    dev`, `bun run dev`). pnpm is what the lockfile, CI and the Dockerfile use. Other tools ignore
+    `pnpm-lock.yaml`, so their first install resolves fresh versions. If you don't have pnpm,
+    `corepack enable` or `npm install -g pnpm` sets it up.
+  </AlertDescription>
+</Alert>
+
+## Scripts
+
+| Command            | What it does                                   |
+| ------------------ | ---------------------------------------------- |
+| `pnpm dev`         | Dev server at `http://localhost:5173`          |
+| `pnpm build`       | Production build to `build/` (Node server)     |
+| `pnpm start`       | Serve the production build                     |
+| `pnpm build:spa`   | Static SPA build to `build/client`, no server  |
+| `pnpm preview:spa` | Serve the SPA build at `http://localhost:4173` |
+| `pnpm fmt`         | Format everything                              |
+| `pnpm test`        | Run the tests once (`pnpm vitest` to watch)    |
+| `pnpm check`       | Format check, lint, typecheck and tests        |
+| `pnpm typecheck`   | Generate route types and run `tsc`             |
+| `pnpm favicon`     | Rebuild `public/favicon.ico` from its SVG      |
+
+`pnpm check` is the same command CI runs. Run it before calling anything done. With another package manager, run the same scripts with `npm run`, `yarn` or `bun run`.
+
+## Testing
+
+Tests sit next to the code they cover, as `*.test.ts(x)` files under `app/`. They run in jsdom with [Testing Library](https://testing-library.com/docs/react-testing-library/intro/). `app/routes/home.test.tsx` is the pattern to copy. It renders the route inside `createRoutesStub`, because route components use `<Link>` and `<Link>` needs a router:
+
+```tsx
+const Stub = createRoutesStub([{ path: "/", Component: Home }]);
+render(<Stub initialEntries={["/"]} />);
+expect((await screen.findByRole("heading", { level: 1 })).textContent).toBe("Places, everyone.");
+```
+
+Vitest has its own `vitest.config.ts`, because the React Router Vite plugin doesn't run under Vitest. `vitest.setup.ts` cleans up the DOM between tests.
+
+## Environment variables
+
+Copy `.env.example` to `.env` for local values. `.env` is gitignored and left out of Docker images, and the React Router CLI loads it for `dev`, `build` and `typegen`.
+
+| Variable | Default | Effect                                                                                                       |
+| -------- | ------- | ------------------------------------------------------------------------------------------------------------ |
+| `SPA`    | unset   | `true` builds a static single-page app (`ssr: false`) instead of the Node server build                       |
+| `VITE_*` | none    | Exposed to browser code as `import.meta.env.VITE_*`. They end up in the bundle, so never put secrets in them |
+
+You can set `SPA` three ways: `pnpm build:spa` for one build, `SPA=true pnpm build` (the same thing, by hand), or `SPA=true` in `.env` for every command, including `dev`. With it in `.env`, plain `pnpm build` produces the SPA build too.
+
+## Make it yours
+
+`create` does the first step for you. If it stops partway, run it yourself in the project:
+
+1. Run `node scripts/make-it-yours.mjs` (or `pnpm make-it-yours`). It needs no install first, and takes the same `--name`, `--description`, `--url` and `--yes` options. It:
+   - sets the name, description and public URL in `app/lib/site.ts`, and the package name in `package.json`
+   - resets versioning to `0.1.0` in `package.json` and `.release-please-manifest.json`, and deletes `CHANGELOG.md`, so release-please starts fresh
+   - records the template release in `TEMPLATE_VERSION`
+   - replaces the README, drops the setup notes from `AGENTS.md`, and deletes itself
+2. Swap the hero image ([Wardrobe](/docs/wardrobe) has the details).
+3. Add routes and components ([Blocking](/docs/blocking) and [Props](/docs/props)).
+4. Replace the favicon. Edit `assets/favicon-tile.svg`, then run `pnpm favicon`.
+
+## Releases
+
+Releases are automated with [release-please](https://github.com/googleapis/release-please), and the same workflow versions your project once you've reset it (step 1 above).
+
+- Write commit messages as [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `chore:`…). Only `feat:` and `fix:` commits, or a `!` breaking change, trigger a release, so squash-merge PRs with a conventional title.
+- On each push to `main`, release-please opens or updates a release PR. Merging it bumps `version` in `package.json`, updates `CHANGELOG.md`, tags `vX.Y.Z` and publishes a GitHub Release.
+- Settings are in `release-please-config.json`. `.release-please-manifest.json` records the last released version, and the release PR updates it.
+- The workflow uses the built-in `GITHUB_TOKEN`, so no secret is needed. Each repo does need **Settings → Actions → General → Allow GitHub Actions to create and approve pull requests** turned on.
+
+If you don't want automated releases, delete `.github/workflows/release-please.yml`.
+
+## With a coding agent
+
+Give the agent a brief for the site and the create command with the values filled in: `pnpm create thats-your-cue my-app --name "…" --description "…" --yes`. If it copies the template another way, `AGENTS.md` tells it to run `pnpm make-it-yours` first. `AGENTS.md` (which `CLAUDE.md` imports) tells it the commands, the layout and the conventions, and `.agents/skills/` has the official React Router and shadcn/ui skills. [Wrap](/docs/wrap#working-with-agents) has more.

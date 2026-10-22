@@ -1,0 +1,21 @@
+These are the components the template ships, rendered live. Each one is the shadcn/ui **Base UI** variant (`base-lyra` style), copied into `app/components/ui/` as source you own. Open **Code** to see the file exactly as it is in the template.
+
+## Adding more
+
+Add components with the shadcn CLI. It reads `components.json` and writes into `app/components/ui/`:
+
+```bash
+pnpm dlx shadcn@latest add card tabs sheet
+```
+
+This site adds about a dozen more (card, tabs, table, alert, badge, breadcrumb, sheet, sidebar, switch, accordion and their dependencies) on top of the ones below.
+
+## Base UI, not Radix
+
+Base UI components compose through a `render` prop. There's no `asChild`:
+
+```tsx
+<Button render={<Link to="/docs/call-sheet" />}>Get started</Button>
+```
+
+Icons inside buttons take `data-icon="inline-start"` or `data-icon="inline-end"`. Leave sizing to the component.

@@ -1,0 +1,62 @@
+name: Release
+
+# release-please keeps one combined release PR up to date from Conventional
+# Commits (root release-please-config.json, manifest mode), bumping every
+# folder with releasable changes. Merging it tags each one: template-vX.Y.Z for
+# the template, <package>-vX.Y.Z for packages, and the publish job pushes the
+# released packages to npm. Publishing
+# uses npm trusted publishing (OIDC), so there's no npm token: configure it on
+# npmjs.com under each package's Settings → Trusted publishing.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write # release-please labels its PRs
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      paths_released: ${{ steps.release.outputs.paths_released }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@v5
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          # PRs opened with the default GITHUB_TOKEN don't trigger other
+          # workflows, so CI won't run on the release PR. To fix that, add a
+          # fine-grained PAT (contents + pull requests: read/write) as a repo
+          # secret and uncomment:
+          # token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+
+  publish:
+    needs: release-please
+    strategy:
+      matrix:
+        package: [packages/create-thats-your-cue, packages/thats-your-cue]
+    if: needs.release-please.outputs.paths_released != '[]' && needs.release-please.outputs.paths_released != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - id: released
+        run: echo "yes=${{ contains(fromJSON(needs.release-please.outputs.paths_released), matrix.package) }}" >> "$GITHUB_OUTPUT"
+      - if: steps.released.outputs.yes == 'true'
+        uses: actions/checkout@v7
+      - if: steps.released.outputs.yes == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          registry-url: https://registry.npmjs.org
+      - if: steps.released.outputs.yes == 'true' && matrix.package == 'packages/create-thats-your-cue'
+        run: node --test
+        working-directory: ${{ matrix.package }}
+      - if: steps.released.outputs.yes == 'true'
+        run: npm publish --provenance --access public
+        working-directory: ${{ matrix.package }}
