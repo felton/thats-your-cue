@@ -1,0 +1,162 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# Every job runs on every PR, whichever folders it touches, so any of them can
+# be a required status check.
+jobs:
+  template:
+    name: Template check & build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: template
+    steps:
+      - uses: actions/checkout@v7
+      # pnpm version comes from the "packageManager" field in package.json
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: template/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: template/.nvmrc
+          cache: pnpm
+          cache-dependency-path: template/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm build
+
+  fresh-copy:
+    # Builds the template the way `create` delivers it: the template/
+    # folder's tracked files only, no .git directory. Catches anything that
+    # only works because of local state or files that were never committed.
+    name: Fresh copy builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Export template/ without .git
+        run: |
+          mkdir -p "$RUNNER_TEMP/app"
+          git archive HEAD:template | tar -x -C "$RUNNER_TEMP/app"
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: template/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: template/.nvmrc
+          cache: pnpm
+          cache-dependency-path: template/pnpm-lock.yaml
+      - name: Make it yours
+        # The way a new project starts: the script runs before install, with
+        # a subpath URL so basename and base are exercised too.
+        working-directory: ${{ runner.temp }}/app
+        run: |
+          node scripts/make-it-yours.mjs --name "Test Site" --description "CI" --url https://example.com/sub --yes
+          test -f TEMPLATE_VERSION
+          test ! -e scripts/make-it-yours.mjs
+          test ! -e CHANGELOG.md
+          grep -q '"0.1.0"' .release-please-manifest.json
+      - name: Install, check and build
+        working-directory: ${{ runner.temp }}/app
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm check
+          pnpm build
+
+  cli:
+    # Unit tests, then a run that copies the template/ folder from this commit.
+    # Windows checks paths. Git checks symlinks out there as plain files, so the
+    # .claude/skills links are checked by create-from-release instead.
+    name: Create a project (${{ matrix.os }})
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: template/.nvmrc
+      - run: node --test
+        working-directory: packages/create-thats-your-cue
+      - run: node packages/create-thats-your-cue/index.mjs ${{ runner.temp }}/app --name "CI Site" --yes
+        env:
+          CREATE_TYC_SOURCE: ${{ github.workspace }}/template
+      - name: Check the result
+        shell: bash
+        working-directory: ${{ runner.temp }}/app
+        run: |
+          test -f TEMPLATE_VERSION
+          test ! -e scripts/make-it-yours.mjs
+          grep -q '"name": "ci-site"' package.json
+
+  create-from-release:
+    # This commit's CLI against GitHub, the way users run it: finds the latest
+    # template-v… release, downloads the repo tarball and copies its template/
+    # folder. Fails until the first template release exists.
+    name: Create from the latest release (${{ matrix.os }})
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: template/.nvmrc
+      - run: node packages/create-thats-your-cue/index.mjs ${{ runner.temp }}/app --name "CI Site" --yes
+        env:
+          # Avoids the unauthenticated GitHub API rate limit.
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Check the result
+        shell: bash
+        working-directory: ${{ runner.temp }}/app
+        run: |
+          test -f TEMPLATE_VERSION
+          test ! -e scripts/make-it-yours.mjs
+          test ! -e packages
+          grep -q '"name": "ci-site"' package.json
+          # The skill links resolve. Node's stat follows Windows symlinks too.
+          node -e 'require("fs").statSync(".claude/skills/shadcn/SKILL.md")'
+
+  actionlint:
+    # Lints this repo's workflows and the template's, which only run in
+    # derived projects and would otherwise go unchecked here.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: >-
+          docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -color
+          .github/workflows/*.yml template/.github/workflows/*.yml
+
+  docs:
+    # The docs site's check and build. Deploying is docs.yml, on push only.
+    name: Docs check & build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: docs/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: docs/.nvmrc
+          cache: pnpm
+          cache-dependency-path: docs/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm build

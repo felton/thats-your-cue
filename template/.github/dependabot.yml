@@ -1,0 +1,41 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm # covers pnpm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    # "fix(deps)" for runtime deps produces a patch release via release-please,
+    # so template users get a new tag when dependencies move.
+    commit-message:
+      prefix: fix
+      prefix-development: chore
+      include: scope
+    # A dependency joins the first group it matches.
+    groups:
+      react-router:
+        patterns: ["react-router", "@react-router/*"]
+      react:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
+      tailwind:
+        patterns: ["tailwindcss", "@tailwindcss/*", "tailwind-merge", "tw-animate-css"]
+      ui:
+        patterns:
+          - "@base-ui/*"
+          - "@base-ui-components/*"
+          - "lucide-react"
+          - "class-variance-authority"
+          - "clsx"
+      tooling:
+        dependency-type: development
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns: ["*"]

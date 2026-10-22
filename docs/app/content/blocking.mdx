@@ -1,0 +1,135 @@
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
+
+Routing is React Router v8 in **framework mode**: you list routes in one config file, each route is a module in `app/routes/`, and the Vite plugin generates types for each one.
+
+## The route config
+
+Every route is registered in `app/routes.ts`. The template starts with one:
+
+```ts
+import { type RouteConfig, index } from "@react-router/dev/routes";
+
+export default [index("routes/home.tsx")] satisfies RouteConfig;
+```
+
+There's no file-system routing: a file in `app/routes/` does nothing until it's listed here.
+
+## Adding a page
+
+1. Create the module, for example `app/routes/about.tsx`:
+
+   ```tsx
+   export default function About() {
+     return (
+       <>
+         <title>About</title>
+         <meta name="description" content="Who we are." />
+         <h1>About</h1>
+       </>
+     );
+   }
+   ```
+
+   React moves the `<title>` and `<meta>` into `<head>`, during server rendering too. [Head tags](#head-tags) has the details.
+
+2. Register it in `app/routes.ts`:
+
+   ```ts
+   import { type RouteConfig, index, route } from "@react-router/dev/routes";
+
+   export default [
+     index("routes/home.tsx"),
+     route("about", "routes/about.tsx"),
+   ] satisfies RouteConfig;
+   ```
+
+3. Link to it with `<Link to="/about">`. shadcn components that render links take a `render` prop rather than `asChild`:
+
+   ```tsx
+   <NavigationMenuLink render={<Link to="/about" />}>About</NavigationMenuLink>
+   ```
+
+A route that exports a `loader`, `action` or `meta` types it with `import type { Route } from "./+types/about"`. That import is generated: if your editor can't find it, run `pnpm typecheck`, which runs `react-router typegen` first.
+
+## Layouts
+
+A layout route renders shared UI around its children through `<Outlet />`, without adding a URL segment. This site's docs pages work this way:
+
+```ts
+layout("routes/docs/layout.tsx", [
+  route("docs/call-sheet", "routes/docs/call-sheet.tsx"),
+  route("docs/blocking", "routes/docs/blocking.tsx"),
+]);
+```
+
+`app/root.tsx` is the outermost layout. It holds the document shell (`<Meta />`, `<Links />`, the dark-mode script) and the app-wide error boundary.
+
+## Head tags
+
+Head tags come in two kinds, set in two places:
+
+- **Site-wide tags** (site name, social image, card type and the canonical link) are rendered by `app/root.tsx` from `app/lib/site.ts`. Every page gets them.
+- **Page tags** (title and description) go in the route component as React `<title>` and `<meta>` elements, like the About page above.
+
+`app/lib/site.ts` holds facts about the site and nothing else:
+
+```ts
+export const site = {
+  name: "That's your cue",
+  description: "Places, everyone.",
+  url: "", // full public address, subpath included
+  image: "", // social card image in public/, ideally 1200x630
+};
+```
+
+- `url` is where the site will be public, such as `https://you.github.io/repo`, never `localhost`. Its path sets `basename` and Vite's `base`, so a subpath is configured in one place.
+- While `url` is empty, the site serves from `/` and leaves out `og:image`, `og:url` and the canonical link, because they need an absolute address. `pnpm build` prints a note. Dev, `pnpm start` and Docker work the same either way.
+- Why not the `meta` export? A child route's `meta` replaces its parent's, so site-wide tags set there would vanish from any page that sets its own. Since React 19, React Router recommends the elements instead. Keep `meta` for tags built from `loaderData`.
+
+## Rendering modes
+
+The same app builds three ways. Only `react-router.config.ts` changes.
+
+<div className="mt-4 grid gap-4 sm:grid-cols-3">
+  <Card>
+    <CardHeader>
+      <CardTitle>Server rendering</CardTitle>
+      <CardDescription>
+        The default. `pnpm build`, then `pnpm start` on any Node host. Loaders and actions run per
+        request.
+      </CardDescription>
+    </CardHeader>
+  </Card>
+  <Card>
+    <CardHeader>
+      <CardTitle>SPA</CardTitle>
+      <CardDescription>
+        `pnpm build:spa`. One `index.html`, routing in the browser. Use `clientLoader` for data.
+      </CardDescription>
+    </CardHeader>
+  </Card>
+  <Card>
+    <CardHeader>
+      <CardTitle>Pre-rendered</CardTitle>
+      <CardDescription>
+        `ssr: false` plus `prerender`. An HTML file per route, made at build time. This site works
+        this way.
+      </CardDescription>
+    </CardHeader>
+  </Card>
+</div>
+
+### Pre-rendering
+
+```ts
+import type { Config } from "@react-router/dev/config";
+
+export default {
+  ssr: false,
+  prerender: true, // every static path in routes.ts, or a list: ["/", "/about"]
+} satisfies Config;
+```
+
+Loaders on pre-rendered routes run once, at build time, and their data is written next to the HTML. This site's [Props](/docs/props) page uses that to syntax-highlight component source without sending a highlighter to the browser. Actions aren't allowed without a server.
+
+Deploying a pre-rendered build under a subpath, such as a GitHub Pages project site, takes one extra step. [Wrap](/docs/wrap#github-pages) covers it.

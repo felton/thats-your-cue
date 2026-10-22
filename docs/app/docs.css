@@ -1,0 +1,35 @@
+/* Docs-site styles on top of the template's app/app.css (which sync:template overwrites). */
+
+/* No rubber-band scrolling at the page edges. The header is sticky and the docs
+   sidebar is fixed, so an overscroll bounce (macOS, iOS) pulls the header down
+   past the sidebar instead of moving them together. */
+html,
+body {
+  overscroll-behavior-y: none;
+}
+
+/* Shiki, dual themes with defaultColor: false. The block background comes from bg-muted. */
+.shiki span {
+  color: var(--shiki-light);
+}
+.dark .shiki span {
+  color: var(--shiki-dark);
+}
+.shiki {
+  background-color: transparent !important;
+}
+
+/* Inline `code` in prose; code inside <pre> keeps Shiki's styling. */
+[data-doc-content] :not(pre) > code {
+  background-color: var(--muted);
+  padding: 0.1rem 0.35rem;
+  font-size: 0.875em;
+  overflow-wrap: anywhere;
+}
+
+/* rehype-autolink-headings wraps headings in a link; keep it looking like a heading. */
+[data-doc-content] :is(h2, h3) > a {
+  color: inherit;
+  text-decoration: none;
+  font-weight: inherit;
+}

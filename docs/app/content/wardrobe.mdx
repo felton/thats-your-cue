@@ -1,0 +1,71 @@
+import { DarkModeSwitch, Swatches } from "~/components/docs/wardrobe-demos";
+import { ThemeToggle } from "~/components/theme-toggle";
+
+The look of the template comes from CSS variables in `app/app.css`. shadcn components and Tailwind utilities read those variables, so changing a token restyles everything that uses it, in light and dark mode.
+
+## Theme tokens
+
+Use the semantic utilities (`bg-background`, `text-muted-foreground`, `border`, `bg-muted`, `bg-primary`) rather than raw palette colors like `bg-zinc-100`. These swatches read the live variables, so they change when you switch themes:
+
+<Swatches />
+
+Each token is set twice in `app/app.css`, once under `:root` and once under `.dark`, then mapped to Tailwind colors in the `@theme inline` block:
+
+```css
+:root {
+  --primary: oklch(0.457 0.24 277.023);
+}
+.dark {
+  --primary: oklch(0.398 0.195 277.366);
+}
+@theme inline {
+  --color-primary: var(--primary);
+}
+```
+
+To restyle the whole kit, edit the values. To add a token, add it to both blocks and map it in `@theme inline`, and a `bg-<name>` utility appears.
+
+## Dark mode
+
+Dark mode is one `dark` class on `<html>`. There's no React provider or context.
+
+- `themeScript` in `app/lib/theme.ts` runs in `<head>` before first paint, so the page never flashes the wrong theme. With System selected (the default) it follows the OS, including later changes, and stays in sync across tabs.
+- `<ThemeToggle />` is the Light / Dark / System menu in the header. CSS picks its sun or moon icon, so the server render always matches.
+- Light and Dark are saved to `localStorage`. System clears the saved value.
+
+Try the real thing: <ThemeToggle />
+
+Or call `setTheme("light" | "dark" | "system")` (or `toggleTheme()`) from anywhere. This switch calls `setTheme`:
+
+<DarkModeSwitch />
+
+Style dark-specific details with `dark:` variants. With the semantic tokens you'll rarely need them for color.
+
+## Fonts
+
+Inter is the body font (`--font-sans`) and Noto Sans the heading font (`--font-heading`). Both are variable fonts installed from Fontsource and imported at the top of `app/app.css`, so they're bundled with the app. To change a font, install another `@fontsource-variable/*` package, swap the `@import`, and update the variable in `@theme inline`.
+
+## Swapping the hero
+
+The home page hero is an `UnsplashPicture`. Pass the photo's path segment from its Unsplash URL as `photoId`:
+
+```tsx
+<UnsplashPicture
+  photoId="photo-1558970439-add78fc68990"
+  alt="An empty theater stage under blue spotlights"
+  aspect="3:2"
+  priority
+  breakpoints={[
+    { minWidth: 640, width: 768, aspect: "3:2" },
+    { minWidth: 0, width: 640, aspect: "3:2" },
+  ]}
+/>
+```
+
+- Set `breakpoints` so the largest `width` is the largest size the image actually renders. The default table goes up to 1920 px for full-bleed heroes.
+- Use `priority` only for images above the fold.
+- Credit the photographer in a caption, as Unsplash asks.
+
+## Favicon
+
+`public/favicon.svg` follows the browser's light or dark setting. `public/favicon.ico` is the fallback for Safari: edit `assets/favicon-tile.svg`, then run `pnpm favicon` (needs `brew install vips` or GraphicsMagick).

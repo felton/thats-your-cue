@@ -1,0 +1,33 @@
+{
+  "name": "create-thats-your-cue",
+  "version": "0.0.1",
+  "description": "Start a new project from the That's your cue template: pnpm create thats-your-cue my-app",
+  "keywords": [
+    "create",
+    "template",
+    "react-router",
+    "shadcn",
+    "tailwind",
+    "vite"
+  ],
+  "license": "MIT",
+  "homepage": "https://felton.github.io/thats-your-cue/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/felton/thats-your-cue.git",
+    "directory": "packages/create-thats-your-cue"
+  },
+  "type": "module",
+  "bin": {
+    "create-thats-your-cue": "index.mjs"
+  },
+  "files": [
+    "index.mjs"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}
