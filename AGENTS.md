@@ -32,6 +32,6 @@ The pnpm version is pinned once, in `packageManager` in `template/package.json`.
 
 ## Commits and releases
 
-- [Conventional Commits](https://www.conventionalcommits.org/), squash-merged. release-please (root `release-please-config.json`, manifest mode) keeps one combined release PR that bumps every folder with releasable changes. Merging it tags each one (`template-v…`, `create-thats-your-cue-v…`, `thats-your-cue-v…`) and publishes the released packages to npm with provenance (npm trusted publishing).
+- [Conventional Commits](https://www.conventionalcommits.org/), squash-merged. release-please (root `release-please-config.json`, manifest mode) keeps one combined release PR that bumps every folder with releasable changes. Merging it tags each one (`template-v…`, `create-thats-your-cue-v…`, `thats-your-cue-v…`) and stages the released packages on npm with provenance (npm trusted publishing, staging only). A staged version isn't installable until a maintainer approves it with 2FA, on npmjs.com or with `npm stage approve <stage-id>` (`npm stage list` shows pending ones). CI can't approve, by design. Tags and GitHub releases exist before approval, so a release isn't on npm until it's approved.
 - Scope commits by folder when it helps: `fix(template): …`, `feat(create): …`. release-please assigns commits by the paths they touch, not the scope.
 - Don't edit `CHANGELOG.md` files or `version` fields by hand.

@@ -3,10 +3,11 @@ name: Release
 # release-please keeps one combined release PR up to date from Conventional
 # Commits (root release-please-config.json, manifest mode), bumping every
 # folder with releasable changes. Merging it tags each one: template-vX.Y.Z for
-# the template, <package>-vX.Y.Z for packages, and the publish job pushes the
-# released packages to npm. Publishing
-# uses npm trusted publishing (OIDC), so there's no npm token: configure it on
-# npmjs.com under each package's Settings → Trusted publishing.
+# the template, <package>-vX.Y.Z for packages, and the publish job stages the
+# released packages on npm. A staged version goes live only after a maintainer
+# approves it with 2FA, on npmjs.com or with `npm stage approve <stage-id>`.
+# Staging uses npm trusted publishing (OIDC), so there's no npm token: each
+# package's Settings → Trusted publishing on npmjs.com allows staging only.
 
 on:
   push:
@@ -54,9 +55,12 @@ jobs:
         with:
           node-version: lts/*
           registry-url: https://registry.npmjs.org
+      # `npm stage` needs npm 11.15.0 or newer, which Node's bundled npm may not be.
+      - if: steps.released.outputs.yes == 'true'
+        run: npm install -g npm@^11.15.0
       - if: steps.released.outputs.yes == 'true' && matrix.package == 'packages/create-thats-your-cue'
         run: node --test
         working-directory: ${{ matrix.package }}
       - if: steps.released.outputs.yes == 'true'
-        run: npm publish --provenance --access public
+        run: npm stage publish --provenance
         working-directory: ${{ matrix.package }}
